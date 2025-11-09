@@ -44,15 +44,17 @@
 
       const gridSize = 40;
       const maxXGrid = 14;
+      const maxYGrid = 10;  // ← 여기 추가! 세로 12칸
 
       useEffect(() => {
         const updateSize = () => {
           const dpr = window.devicePixelRatio || 1;
           const container = document.querySelector('.canvas-container') || document.body;
           const width = Math.min(container.clientWidth - 40, maxXGrid * gridSize + 40);
-          const height = (width * 500) / 800;
+          const height = maxYGrid * gridSize + 40;  // ← 여기 수정!
           setCanvasSize({ width, height, dpr });
         };
+
         updateSize();
         window.addEventListener('resize', updateSize);
         return () => window.removeEventListener('resize', updateSize);
@@ -253,19 +255,17 @@
       const blueCount = points.filter(p => p.color === 'blue').length;
 
       return (
-        <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
-          {/* 헤더 */}
-          <font size = "2">부산진여자상업고등학교 인공지능기초 학습자료</font>
+        <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
+          <font size="2">부산진여자상업고등학교 인공지능기초 학습자료</font>
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
             <h1 className="text-3xl font-bold mb-2">K-최근접 이웃(K-NN)이란 무엇일까?</h1>
             <p className="text-indigo-100">인공지능의 기본 분류 알고리즘을 체험해보세요</p>
           </div>
 
-          {/* 설명 섹션 */}
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 border-b border-indigo-100">
             <div className="space-y-3 text-gray-700">
               <div>
-                <h3 className="font-bold text-indigo-900 text-lg mb-2">📚 K-NN 알고리즘이란?</h3>
+                <h3 className="font-bold text-indigo-900 text-lg mb-2">K-NN 알고리즘이란?</h3>
                 <p className="leading-relaxed">
                   K-NN은 가장 가까운 이웃을 찾아서 분류하는 방법이에요. 예를 들어, 새로 전학 온 학생이 어느 동아리에 어울릴지 모를 때, 가장 비슷한 성향을 가진 친구 K명을 찾아서 그들이 속한 동아리를 보고 <font color="blue">다수결</font>로 결정하는 것과 같아요!
                 </p>
@@ -290,11 +290,10 @@
 
           <div className="p-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* 컨트롤 패널 */}
               <div className="space-y-4">
                 <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
                   <h3 className="font-bold text-indigo-900 mb-3 flex items-center gap-2">
-                    <span className="text-xl">⚙️</span>
+                    <span className="text-xl">설정</span>
                     <span>알고리즘 설정</span>
                   </h3>
                   
@@ -330,7 +329,7 @@
 
                 <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                   <h3 className="font-bold text-green-900 mb-3 flex items-center gap-2">
-                    <span className="text-xl">📊</span>
+                    <span className="text-xl">데이터</span>
                     <span>데이터 입력</span>
                   </h3>
                   <div className="space-y-2">
@@ -351,7 +350,7 @@
 
                 <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                   <h3 className="font-bold text-orange-900 mb-3 flex items-center gap-2">
-                    <span className="text-xl">📈</span>
+                    <span className="text-xl">현황</span>
                     <span>데이터 현황</span>
                   </h3>
                   <div className="space-y-2 text-sm">
@@ -375,12 +374,11 @@
                 </div>
               </div>
 
-              {/* 메인 캔버스 */}
               <div className="lg:col-span-3 space-y-4">
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <span className="text-xl">🎯</span>
-                    <span>2차원 특성 공간 (좌표: 0~14)</span>
+                    <span className="text-xl">공간</span>
+                    <span>2차원 특성 공간 (좌표: 0~14, 0~10)</span>
                   </h3>
                   <div className="canvas-container">
                     <div className="relative bg-white rounded-lg shadow-inner overflow-hidden border-2 border-gray-300">
@@ -400,7 +398,7 @@
                   {result && (
                     <div className="mt-4 bg-gradient-to-r from-green-50 to-emerald-50 p-5 rounded-lg border-2 border-green-400">
                       <h3 className="text-xl font-bold text-green-800 mb-3 flex items-center gap-2">
-                        <span>✅</span>
+                        <span>결과</span>
                         <span>분류 결과</span>
                       </h3>
                       <div className="space-y-3">
@@ -416,7 +414,7 @@
                         
                         <div className="bg-white p-4 rounded-lg shadow-sm">
                           <p className="font-semibold text-gray-800 mb-2">
-                            📏 {result.metricName} 거리 기준 최근접 이웃 {k}개
+                            {result.metricName} 거리 기준 최근접 이웃 {k}개
                           </p>
                           <div className="space-y-1 text-sm">
                             {result.nearest.map((n,i) => {
@@ -441,7 +439,6 @@
                   )}
                 </div>
 
-                {/* 범례 */}
                 <div className="flex justify-center gap-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-gray-800"></div>
