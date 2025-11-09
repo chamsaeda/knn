@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KNN 알고리즘</title>
+
+  <!-- React -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body { 
+      font-family: 'Malgun Gothic', sans-serif; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 0;
+      padding: 20px;
+    }
+    canvas { image-rendering: pixelated; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const KNNDemo = () => {
+      const canvasRef = useRef(null);
+      const [points, setPoints] = useState([]);
+      const [testPoint, setTestPoint] = useState(null);
+      const [mode, setMode] = useState('red');
+      const [k, setK] = useState(3);
+      const [metric, setMetric] = useState('euclidean');
+      const [result, setResult] = useState(null);
+      const [hovered, setHovered] = useState(null);
+      const [canvasSize, setCanvasSize] = useState({ width: 800, height: 500, dpr: 1 });
+
+      const gridSize = 40;
+      const maxXGrid = 14;
+
+      useEffect(() => {
+        const updateSize = () => {
+          const dpr = window.devicePixelRatio || 1;
+          const container = document.querySelector('.canvas-container') || document.body;
+          const width = Math.min(container.clientWidth - 40, maxXGrid * gridSize + 40);
+          const height = (width * 500) / 800;
+          setCanvasSize({ width, height, dpr });
+        };
+        updateSize();
+        window.addEventListener('resize', updateSize);
+        return () => window.removeEventListener('resize', updateSize);
+      }, []);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const { width, height, dpr } = canvasSize;
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+
+        ctx.scale(dpr, dpr);
+        draw();
+      }, [canvasSize, points, testPoint, result, metric]);
+
+      useEffect(() => {
+        if (testPoint) classify();
+      }, [metric, k, testPoint, points]);
+
+      useEffect(() => {
+        const sample = [
+          {x: 4*gridSize, y: 3*gridSize, color: 'red'},
+          {x: 5*gridSize, y: 4*gridSize, color: 'red'},
+          {x: 3*gridSize, y: 2*gridSize, color: 'red'},
+          {x: 5*gridSize, y: 2*gridSize, color: 'red'},
+          {x: 10*gridSize, y: 8*gridSize, color: 'blue'},
+          {x: 11*gridSize, y: 9*gridSize, color: 'blue'},
+          {x: 9*gridSize, y: 7*gridSize, color: 'blue'},
+          {x: 10*gridSize, y: 9*gridSize, color: 'blue'}
+        ];
+        setPoints(sample);
+      }, []);
+
+      const draw = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const { width, height } = canvasSize;
+
+        ctx.clearRect(0, 0, width, height);
+
+        // 격자
+        ctx.strokeStyle = '#e0e7ff';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= Math.min(width, maxXGrid * gridSize); i += gridSize) {
+          ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, height); ctx.stroke();
+          if (i > 0 && i <= maxXGrid * gridSize) {
+            ctx.fillStyle = '#4f46e5'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(Math.round(i/gridSize), i, height - 5);
+          }
+        }
+        for (let i = 0; i <= height; i += gridSize) {
+          ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(width, i); ctx.stroke();
+          if (i > 0 && i < height) {
+            ctx.fillStyle = '#4f46e5'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+            ctx.fillText(Math.round(i/gridSize), 5, i + 4);
+          }
+        }
+
+        // 데이터 포인트
+        points.forEach(p => {
+          if (p.x > maxXGrid * gridSize) return;
+          ctx.fillStyle = p.color === 'red' ? '#ef4444' : '#3b82f6';
+          ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI*2); ctx.fill();
+          ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 2; ctx.stroke();
+        });
+
+        if (testPoint && testPoint.x <= maxXGrid * gridSize) {
+          ctx.fillStyle = '#10b981';
+          ctx.beginPath(); ctx.arc(testPoint.x, testPoint.y, 12, 0, Math.PI*2); ctx.fill();
+          ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 2; ctx.stroke();
+        }
+
+        // 거리 연결선
+        if (result && result.nearest && testPoint) {
+          ctx.lineWidth = 2;
+          result.nearest.forEach(n => {
+            const px = n.point.x, py = n.point.y;
+            const tx = testPoint.x, ty = testPoint.y;
+            ctx.beginPath();
+
+            if (metric === 'euclidean') {
+              ctx.moveTo(tx, ty); ctx.lineTo(px, py);
+              ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
+            } else if (metric === 'manhattan') {
+              ctx.moveTo(tx, ty); ctx.lineTo(px, ty); ctx.lineTo(px, py);
+              ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)';
+            } else if (metric === 'chebyshev') {
+              const dx = Math.abs(px - tx), dy = Math.abs(py - ty);
+              if (dx > dy) {
+                ctx.moveTo(tx, ty); ctx.lineTo(px, ty); ctx.lineTo(px, py);
+              } else {
+                ctx.moveTo(tx, ty); ctx.lineTo(tx, py); ctx.lineTo(px, py);
+              }
+              ctx.strokeStyle = 'rgba(168, 85, 247, 0.7)';
+            }
+            ctx.stroke();
+          });
+        }
+      };
+
+      const distance = (p1, p2) => {
+        const x1 = p1.x / gridSize, y1 = p1.y / gridSize;
+        const x2 = p2.x / gridSize, y2 = p2.y / gridSize;
+        if (metric === 'euclidean') return Math.hypot(x2-x1, y2-y1);
+        if (metric === 'manhattan') return Math.abs(x2-x1) + Math.abs(y2-y1);
+        return Math.max(Math.abs(x2-x1), Math.abs(y2-y1));
+      };
+
+      const classify = () => {
+        if (!testPoint || points.length === 0) return;
+        const distances = points.map(p => ({ point: p, dist: distance(testPoint, p) }));
+        distances.sort((a,b) => a.dist - b.dist);
+        const nearest = distances.slice(0, k);
+
+        let red = 0, blue = 0;
+        nearest.forEach(n => n.point.color === 'red' ? red++ : blue++);
+
+        const predicted = red > blue ? 'red' : 'blue';
+        const colorName = predicted === 'red' ? '클래스 A' : '클래스 B';
+
+        setResult({
+          predicted, colorName, red, blue, nearest,
+          metricName: metric === 'euclidean' ? '유클리드' : metric === 'manhattan' ? '맨해튼' : '체비셰프'
+        });
+      };
+
+      const handleClick = (e) => {
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const dpr = canvasSize.dpr;
+
+        let x = (e.clientX - rect.left) * scaleX / dpr;
+        let y = (e.clientY - rect.top) * scaleY / dpr;
+
+        const gridX = Math.round(x / gridSize) * gridSize;
+        const gridY = Math.round(y / gridSize) * gridSize;
+
+        const finalX = Math.min(gridX, maxXGrid * gridSize);
+        const finalY = gridY;
+
+        if (mode === 'test') {
+          setTestPoint({ x: finalX, y: finalY });
+        } else {
+          setPoints(prev => [...prev, { x: finalX, y: finalY, color: mode }]);
+          setResult(null);
+        }
+      };
+
+      const handleMouseMove = (e) => {
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const dpr = canvasSize.dpr;
+
+        const mx = (e.clientX - rect.left) * scaleX / dpr;
+        const my = (e.clientY - rect.top) * scaleY / dpr;
+
+        let found = null;
+        for (let p of points) {
+          if (p.x > maxXGrid * gridSize) continue;
+          if (Math.hypot(mx - p.x, my - p.y) <= 12) { found = p; break; }
+        }
+        if (!found && testPoint && testPoint.x <= maxXGrid * gridSize && Math.hypot(mx - testPoint.x, my - testPoint.y) <= 14) {
+          found = { ...testPoint, color: 'green' };
+        }
+        setHovered(found ? { ...found, gridX: Math.round(found.x/40), gridY: Math.round(found.y/40) } : null);
+      };
+
+      const reset = () => {
+        setPoints([]);
+        setTestPoint(null);
+        setResult(null);
+        setMode('red');
+        const sample = [
+          {x: 4*gridSize, y: 3*gridSize, color: 'red'},
+          {x: 5*gridSize, y: 4*gridSize, color: 'red'},
+          {x: 3*gridSize, y: 2*gridSize, color: 'red'},
+          {x: 5*gridSize, y: 2*gridSize, color: 'red'},
+          {x: 10*gridSize, y: 8*gridSize, color: 'blue'},
+          {x: 11*gridSize, y: 9*gridSize, color: 'blue'},
+          {x: 9*gridSize, y: 7*gridSize, color: 'blue'},
+          {x: 10*gridSize, y: 9*gridSize, color: 'blue'}
+        ];
+        setPoints(sample);
+      };
+
+      const redCount = points.filter(p => p.color === 'red').length;
+      const blueCount = points.filter(p => p.color === 'blue').length;
+
+      return (
+        <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
+          {/* 헤더 */}
+          <font size = "2">부산진여자상업고등학교 인공지능기초 학습자료</font>
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+            <h1 className="text-3xl font-bold mb-2">K-최근접 이웃(K-NN)이란 무엇일까?</h1>
+            <p className="text-indigo-100">인공지능의 기본 분류 알고리즘을 체험해보세요</p>
+          </div>
+
+          {/* 설명 섹션 */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 border-b border-indigo-100">
+            <div className="space-y-3 text-gray-700">
+              <div>
+                <h3 className="font-bold text-indigo-900 text-lg mb-2">📚 K-NN 알고리즘이란?</h3>
+                <p className="leading-relaxed">
+                  K-NN은 가장 가까운 이웃을 찾아서 분류하는 방법이에요. 예를 들어, 새로 전학 온 학생이 어느 동아리에 어울릴지 모를 때, 가장 비슷한 성향을 가진 친구 K명을 찾아서 그들이 속한 동아리를 보고 <font color="blue">다수결</font>로 결정하는 것과 같아요!
+                </p>
+              </div>
+              
+              <div className="grid md:grid-cols-3 gap-4 mt-4">
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <h4 className="font-bold text-indigo-700 mb-2">1️⃣ 학습 데이터 추가</h4>
+                  <p className="text-sm">클래스 A 또는 클래스 B 버튼을 선택한 후 캔버스를 클릭하여 학습 데이터를 추가합니다.</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <h4 className="font-bold text-green-700 mb-2">2️⃣ 테스트 데이터 분류</h4>
+                  <p className="text-sm">'테스트 데이터 분류' 모드를 선택하고 캔버스를 클릭하면 AI가 자동으로 분류합니다.</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <h4 className="font-bold text-purple-700 mb-2">3️⃣ 매개변수 조정</h4>
+                  <p className="text-sm">K값과 거리 측정 방식을 변경하여 분류 결과가 어떻게 달라지는지 관찰합니다.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* 컨트롤 패널 */}
+              <div className="space-y-4">
+                <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                  <h3 className="font-bold text-indigo-900 mb-3 flex items-center gap-2">
+                    <span className="text-xl">⚙️</span>
+                    <span>알고리즘 설정</span>
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">K값 (가장 가까운 이웃 수)</label>
+                      <select value={k} onChange={e=>setK(+e.target.value)} 
+                        className="w-full p-2 border border-indigo-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="1">K = 1</option>
+                        <option value="3">K = 3 (권장)</option>
+                        <option value="5">K = 5</option>
+                        <option value="7">K = 7</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">*K값이 클수록 안정적이지만 경계가 부드러워집니다</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">거리 측정 방식(Metric)</label>
+                      <select value={metric} onChange={e=>setMetric(e.target.value)} 
+                        className="w-full p-2 border border-indigo-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="euclidean">유클리드 (직선)</option>
+                        <option value="manhattan">맨해튼 (격자)</option>
+                        <option value="chebyshev">체비셰프 (체스)</option>
+                      </select>
+                      <p className="text-sm text-blue-600 mt-1">
+                        {metric === 'euclidean' && '직선 거리 - 비행기처럼 쭉! ✈️'}
+                        {metric === 'manhattan' && 'ㄴ자 거리 - 길 따라 걷기 🚶'}
+                        {metric === 'chebyshev' && '사각형 거리 - 킹이 한 번에 이동!♟️'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <h3 className="font-bold text-green-900 mb-3 flex items-center gap-2">
+                    <span className="text-xl">📊</span>
+                    <span>데이터 입력</span>
+                  </h3>
+                  <div className="space-y-2">
+                    <button onClick={()=>setMode('red')} 
+                      className={`w-full p-3 rounded-lg font-semibold transition-all ${mode==='red' ? 'bg-red-500 text-white shadow-lg scale-105' : 'bg-white text-red-600 border-2 border-red-300 hover:bg-red-50'}`}>
+                      클래스 A 추가
+                    </button>
+                    <button onClick={()=>setMode('blue')} 
+                      className={`w-full p-3 rounded-lg font-semibold transition-all ${mode==='blue' ? 'bg-blue-500 text-white shadow-lg scale-105' : 'bg-white text-blue-600 border-2 border-blue-300 hover:bg-blue-50'}`}>
+                      클래스 B 추가
+                    </button>
+                    <button onClick={()=>setMode('test')} 
+                      className={`w-full p-3 rounded-lg font-semibold transition-all ${mode==='test' ? 'bg-green-500 text-white shadow-lg scale-105' : 'bg-white text-green-600 border-2 border-green-300 hover:bg-green-50'}`}>
+                      테스트 데이터 분류
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                  <h3 className="font-bold text-orange-900 mb-3 flex items-center gap-2">
+                    <span className="text-xl">📈</span>
+                    <span>데이터 현황</span>
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between items-center p-2 bg-white rounded">
+                      <span className="font-medium">클래스 A:</span>
+                      <span className="font-bold text-red-600">{redCount}개</span>
+                    </div>
+                    <div className="flex justify-between items-center p-2 bg-white rounded">
+                      <span className="font-medium">클래스 B:</span>
+                      <span className="font-bold text-blue-600">{blueCount}개</span>
+                    </div>
+                    <div className="flex justify-between items-center p-2 bg-white rounded">
+                      <span className="font-medium">테스트:</span>
+                      <span className="font-bold text-green-600">{testPoint ? 1 : 0}개</span>
+                    </div>
+                  </div>
+                  <button onClick={reset} 
+                    className="mt-3 w-full p-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold transition-colors">
+                    초기화
+                  </button>
+                </div>
+              </div>
+
+              {/* 메인 캔버스 */}
+              <div className="lg:col-span-3 space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <span className="text-xl">🎯</span>
+                    <span>2차원 특성 공간 (좌표: 0~14)</span>
+                  </h3>
+                  <div className="canvas-container">
+                    <div className="relative bg-white rounded-lg shadow-inner overflow-hidden border-2 border-gray-300">
+                      <canvas ref={canvasRef} onClick={handleClick} onMouseMove={handleMouseMove} 
+                        onMouseLeave={()=>setHovered(null)} 
+                        className="block w-full cursor-crosshair" />
+                      {hovered && (
+                        <div className="absolute bg-gray-900 text-white text-xs px-3 py-1 rounded-md pointer-events-none shadow-lg" 
+                          style={{left: hovered.x + 15, top: hovered.y - 10}}>
+                          {hovered.color === 'red' ? '클래스 A' : hovered.color === 'blue' ? '클래스 B' : '테스트'} 
+                          <span className="ml-1 text-gray-300">({hovered.gridX}, {hovered.gridY})</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {result && (
+                    <div className="mt-4 bg-gradient-to-r from-green-50 to-emerald-50 p-5 rounded-lg border-2 border-green-400">
+                      <h3 className="text-xl font-bold text-green-800 mb-3 flex items-center gap-2">
+                        <span>✅</span>
+                        <span>분류 결과</span>
+                      </h3>
+                      <div className="space-y-3">
+                        <p className="text-lg">
+                          예측된 클래스: <strong className="text-xl" style={{color: result.predicted === 'red' ? '#ef4444' : '#3b82f6'}}>
+                            {result.colorName}
+                          </strong>
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          투표 결과 - 클래스 A: <span className="font-bold text-red-600">{result.red}표</span>, 
+                          클래스 B: <span className="font-bold text-blue-600">{result.blue}표</span>
+                        </p>
+                        
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <p className="font-semibold text-gray-800 mb-2">
+                            📏 {result.metricName} 거리 기준 최근접 이웃 {k}개
+                          </p>
+                          <div className="space-y-1 text-sm">
+                            {result.nearest.map((n,i) => {
+                              const px = Math.round(n.point.x/gridSize);
+                              const py = Math.round(n.point.y/gridSize);
+                              const distDisplay = n.dist % 1 === 0 ? n.dist : n.dist.toFixed(2);
+                              return (
+                                <div key={i} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
+                                  <span className="font-medium text-gray-600">{i+1}위:</span>
+                                  <span className={`font-bold ${n.point.color==='red'?'text-red-600':'text-blue-600'}`}>
+                                    {n.point.color==='red'?'클래스 A':'클래스 B'}
+                                  </span>
+                                  <span className="text-gray-500">({px}, {py})</span>
+                                  <span className="ml-auto text-gray-700">거리: <strong>{distDisplay}</strong></span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 범례 */}
+                <div className="flex justify-center gap-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-gray-800"></div>
+                    <span className="font-medium text-gray-700">클래스 A (농구반)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 bg-blue-500 rounded-full border-2 border-gray-800"></div>
+                    <span className="font-medium text-gray-700">클래스 B (댄스반)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 bg-green-500 rounded-full border-2 border-gray-800"></div>
+                    <span className="font-medium text-gray-700">테스트 데이터 (전학 온 학생)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<KNNDemo />);
+  </script>
+</body>
+</html>
