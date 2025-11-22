@@ -6,14 +6,16 @@
   <title>KNN 알고리즘</title>
 
   <!-- React -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="react.production.min.js"></script>
+  <script src="react-dom.production.min.js"></script>
   
   <!-- Babel -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="babel.min.js"></script>
   
   <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="tailwind.js"></script> 
+  <!-- <link rel="stylesheet" href="tailwind.min.css">  -->
+  <!-- <script src="https://cdn.tailwindcss.com"></script> -->    
 
   <style>
     body { 
@@ -41,6 +43,7 @@
       const [result, setResult] = useState(null);
       const [hovered, setHovered] = useState(null);
       const [canvasSize, setCanvasSize] = useState({ width: 800, height: 500, dpr: 1 });
+      const [showKNNTooltip, setShowKNNTooltip] = useState(false);
 
       const gridSize = 40;
       const maxXGrid = 14;
@@ -444,17 +447,27 @@
 
                 {/* 범례 */}
                 <div className="flex justify-center gap-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" title="지도교사 김동주">
                     <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-gray-800"></div>
                     <span className="font-medium text-gray-700">클래스 A (농구반)</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" title="베아트리스">
                     <div className="w-5 h-5 bg-blue-500 rounded-full border-2 border-gray-800"></div>
                     <span className="font-medium text-gray-700">클래스 B (댄스반)</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 bg-green-500 rounded-full border-2 border-gray-800"></div>
+                  <div className="flex items-center gap-2 relative">
+                    <div className="w-5 h-5 bg-green-500 rounded-full border-2 border-gray-800 cursor-pointer"
+                       onClick={() => {
+			  setShowKNNTooltip(true);
+			  setTimeout(() => setShowKNNTooltip(false), 500); }}>
+		    </div>
                     <span className="font-medium text-gray-700">테스트 데이터 (전학 온 학생)</span>
+                    {showKNNTooltip && (
+                      <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-yellow-900 text-white text-xs px-4 py-2 rounded-lg shadow-lg whitespace-nowrap z-50">
+                         참새다!
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-yellow-900"></div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
